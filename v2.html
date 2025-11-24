@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invidious動画プレイヤー（自動再生＋キャッシュ）</title>
+<style>
+body { font-family: sans-serif; margin:0; padding:0; background:#1a1a2e; color:#eee; }
+header { background:#111; padding:10px 20px; display:flex; align-items:center; justify-content:space-between; }
+h1 { margin:0; font-size:1.2em; }
+.tabs { display:flex; background:#222; }
+.tab { flex:1; text-align:center; padding:10px; cursor:pointer; color:#aaa; }
+.tab.active { background:#333; color:#fff; }
+.tab-content { display:none; padding:10px; }
+.tab-content.active { display:block; }
+input, select, button { padding:5px; margin:5px 0; border-radius:4px; border:none; }
+button { cursor:pointer; background:#444; color:#fff; }
+button:disabled { opacity:0.5; cursor:default; }
+#videoPlayer { width:100%; max-height:480px; background:#000; margin-top:10px; }
+.video-card { display:inline-block; width:150px; margin:5px; cursor:pointer; background:#222; border-radius:4px; overflow:hidden; vertical-align:top; }
+.video-card img { width:100%; height:84px; object-fit:cover; background:#333; }
+.video-info { padding:4px; font-size:0.8em; }
+.video-title { font-weight:bold; }
+.video-author, .video-stats { color:#aaa; }
+.status { padding:5px; margin:5px 0; font-size:0.9em; }
+.status.success { color:#0f0; }
+.status.error { color:#f33; }
+.status.info { color:#0ff; }
+.loading-spinner { border:2px solid #ccc; border-top:2px solid #0ff; border-radius:50%; width:12px; height:12px; display:inline-block; animation:spin 0.8s linear infinite; }
+@keyframes spin { 0%{transform:rotate(0deg);}100%{transform:rotate(360deg);} }
+#videoGrid { display:flex; flex-wrap:wrap; }
+.no-results { color:#aaa; }
+#playerSection { display:none; padding:10px; background:#111; margin-top:10px; }
+#playerSection.active { display:block; }
+.stats-box { display:flex; gap:10px; margin:5px 0; font-size:0.8em; color:#aaa; }
+</style>
+</head>
+<body>
+<header>
+<h1>Invidious動画プレイヤー</h1>
+<div>
+<select id="instanceSelect"></select>
+</div>
+</header>
+
+<div class="tabs">
+<div class="tab active" onclick="switchTab('search')">検索</div>
+<div class="tab" onclick="switchTab('url')">URL再生</div>
+</div>
+
+<div id="searchTab" class="tab-content active">
+<input type="text" id="searchInput" placeholder="動画を検索">
+<button id="searchBtn" onclick="searchVideos()">検索</button>
+<div id="videoGrid"></div>
+</div>
+
+<div id="urlTab" class="tab-content">
+<input type="text" id="urlInput" placeholder="YouTube URLまたは動画ID">
+<button onclick="playFromUrl()">再生</button>
+</div>
+
+<div id="playerSection">
+<div><strong id="playerTitle"></strong></div>
+<video id="videoPlayer" controls autoplay></video>
+<div>
+<label>画質:</label>
+<select id="qualitySelect"></select>
+</div>
+<div id="currentInstanceInfo"></div>
+<div id="retryInfo"></div>
+<div class="stats-box">
+<div>成功率: <span id="successRate">0%</span></div>
+<div>平均速度: <span id="avgSpeed">0ms</span></div>
+<div>インスタンス数: <span id="instanceCount">0</span></div>
+</div>
+<div id="status" class="status"></div>
+</div>
+
+<script>
+// --- インスタンスリスト ---
+const instances = [
+  "https://invidious.snopyta.org",
+  "https://invidious.kavin.rocks",
+  "https://invidious.namazso.eu",
+  "https://invidious.fdn.fr",
+  "https://yewtu.be"
+];
+
+const instanceSelect = document.getElementById("instanceSelect");
+const videoGrid = document.getElementById("videoGrid");
+const searchInput = document.getElementById("searchInput");
+const urlInput = document.getElementById("urlInput");
+const playerSection = document.getElementById("playerSection");
+const videoPlayer = document.getElementById("videoPlayer");
+const playerTitle = document.getElementById("playerTitle");
+const qualitySelect = document.getElementById("qualitySelect");
+const statusEl = document.getElementById("status");
+const successRateEl = document.getElementById("successRate");
+const avgSpeedEl = document.getElementById("avgSpeed");
+const instanceCountEl = document.getElementById("instanceCount");
+const currentInstanceInfo = document.getElementById("currentInstanceInfo");
+const retryInfo = document.getElementById("retryInfo");
+
+let currentInstance = instances[0];
+let successCount = 0, failCount = 0, totalSpeed = 0;
+
+// --- キャッシュ ---
+const searchCache = {};
+const videoCache = {};
+
+instances.forEach(inst=>{
+  const opt = document.createElement("option");
+  opt.value = inst;
+  opt.textContent = inst.replace(/^https?:\/\//,"");
+  instanceSelect.appendChild(opt);
+});
+
+instanceSelect.addEventListener("change", ()=>{
+  currentInstance = instanceSelect.value;
+});
+
+function switchTab(tab){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+  if(tab==="search"){ document.querySelector(".tab:nth-child(1)").classList.add("active"); document.getElementById("searchTab").classList.add("active"); }
+  else { document.querySelector(".tab:nth-child(2)").classList.add("active"); document.getElementById("urlTab").classList.add("active"); }
+}
+
+// --- 検索 ---
+async function searchVideos(){
+  const query = searchInput.value.trim();
+  if(!query) return;
+  videoGrid.innerHTML='<span class="loading-spinner"></span>検索中...';
+  if(searchCache[query]) { renderSearchResults(searchCache[query]); return; }
+  let res, data;
+  for(const inst of instances){
+    try{
+      const start = performance.now();
+      res = await fetch(`${inst}/api/v1/search?q=${encodeURIComponent(query)}`);
+      data = await res.json();
+      const end = performance.now();
+      successCount++; totalSpeed += (end-start);
+      break;
+    }catch(e){ failCount++; continue; }
+  }
+  if(!data || !data.length){ videoGrid.innerHTML='<div class="no-results">結果なし</div>'; return; }
+  searchCache[query] = data;
+  renderSearchResults(data);
+  updateStats();
+}
+
+function renderSearchResults(data){
+  videoGrid.innerHTML='';
+  data.forEach(v=>{
+    if(!v.videoId) return;
+    const card = document.createElement("div"); card.className="video-card";
+    card.innerHTML = `<img src="${v.videoThumbnails?.[0]?.url||''}" alt=""><div class="video-info"><div class="video-title">${v.title}</div><div class="video-author">${v.author}</div></div>`;
+    card.onclick=()=>playVideo(v.videoId,v.title);
+    videoGrid.appendChild(card);
+  });
+}
+
+// --- URL再生 ---
+function extractVideoId(url){
+  const m = url.match(/[?&]v=([^&]+)/); return m?m[1]:url;
+}
+function playFromUrl(){
+  const vid = extractVideoId(urlInput.value.trim());
+  if(!vid) { alert("動画IDまたはURLを入力してください"); return; }
+  playVideo(vid,"");
+}
+
+// --- 動画再生 ---
+async function playVideo(videoId,title){
+  statusEl.textContent="読み込み中..."; statusEl.className="status info";
+  playerSection.classList.add("active");
+  videoPlayer.pause(); videoPlayer.src="";
+  playerTitle.textContent=title||videoId;
+  qualitySelect.innerHTML="";
+  if(videoCache[videoId]) { setupPlayer(videoCache[videoId]); return; }
+
+  let data;
+  let retries = 0;
+  while(retries<instances.length){
+    try{
+      const inst = instances[(instances.indexOf(currentInstance)+retries)%instances.length];
+      currentInstanceInfo.textContent=`インスタンス: ${inst}`;
+      const start = performance.now();
+      const res = await fetch(`${inst}/api/v1/videos/${videoId}`);
+      data = await res.json();
+      const end = performance.now();
+      successCount++; totalSpeed += (end-start);
+      break;
+    }catch(e){ retries++; failCount++; retryInfo.textContent=`リトライ: ${retries}`; continue; }
+  }
+  if(!data){ statusEl.textContent="再生できません"; statusEl.className="status error"; return; }
+  videoCache[videoId] = data;
+  setupPlayer(data);
+  updateStats();
+}
+
+function setupPlayer(data){
+  statusEl.textContent="再生準備完了"; statusEl.className="status success";
+  const formats = data.formatStreams.filter(f=>f.audioCodec&&f.videoCodec).sort((a,b)=>b.itag-a.itag);
+  formats.forEach(f=>{
+    const opt = document.createElement("option"); opt.value=f.url;
+    opt.textContent=`${f.qualityLabel} ${f.container}`;
+    qualitySelect.appendChild(opt);
+  });
+  if(formats.length>0){ videoPlayer.src=formats[0].url; videoPlayer.play(); }
+  qualitySelect.onchange=()=>{ videoPlayer.src=qualitySelect.value; videoPlayer.play(); };
+}
+
+// --- ステータス更新 ---
+function updateStats(){
+  const total = successCount+failCount;
+  successRateEl.textContent = total? Math.round(successCount/total*100)+"%":"0%";
+  avgSpeedEl.textContent = successCount? Math.round(totalSpeed/successCount)+"ms":"0ms";
+  instanceCountEl.textContent = instances.length;
+}
+</script>
+</body>
+</html>
