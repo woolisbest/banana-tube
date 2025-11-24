@@ -1,0 +1,1012 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invidious YouTube - プライバシー重視の動画プレーヤー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(20, 20, 30, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        h1 {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 3em;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 40px;
+            font-size: 1em;
+            font-weight: 300;
+        }
+        
+        .status {
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95em;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .status.loading {
+            background: rgba(255, 193, 7, 0.1);
+            color: #ffc107;
+            border-color: rgba(255, 193, 7, 0.3);
+        }
+        
+        .status.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+            border-color: rgba(76, 175, 80, 0.3);
+        }
+        
+        .status.error {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border-color: rgba(244, 67, 54, 0.3);
+        }
+        
+        .status.info {
+            background: rgba(33, 150, 243, 0.1);
+            color: #2196f3;
+            border-color: rgba(33, 150, 243, 0.3);
+        }
+        
+        .search-section {
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 16px 24px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            font-size: 16px;
+            color: #e0e0e0;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="text"]::placeholder {
+            color: #666;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: rgba(100, 100, 100, 0.3);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: transparent;
+            color: #888;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: none;
+        }
+        
+        .tab:hover {
+            color: #aaa;
+            background: rgba(255, 255, 255, 0.05);
+            transform: none;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .video-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .video-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.3);
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+        
+        .video-thumbnail {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #1a1a2e;
+        }
+        
+        .video-info {
+            padding: 18px;
+        }
+        
+        .video-title {
+            font-weight: 700;
+            color: #f0f0f0;
+            margin-bottom: 10px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-size: 1.05em;
+            line-height: 1.4;
+        }
+        
+        .video-author {
+            color: #999;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .video-stats {
+            color: #666;
+            font-size: 0.85em;
+            font-weight: 400;
+        }
+        
+        .player-section {
+            margin-top: 40px;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .player-section.active {
+            display: block;
+        }
+        
+        video {
+            width: 100%;
+            max-height: 600px;
+            background: #000;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .player-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #f0f0f0;
+            margin: 20px 0;
+            line-height: 1.4;
+        }
+        
+        .player-controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .quality-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .quality-selector label {
+            font-weight: 600;
+            color: #aaa;
+            font-size: 0.95em;
+        }
+        
+        .quality-selector select {
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 14px;
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .quality-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .instance-info {
+            font-size: 0.9em;
+            color: #888;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .instance-selector {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .instance-selector label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #aaa;
+            font-size: 0.95em;
+        }
+        
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 14px;
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        
+        .retry-info {
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-label {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 5px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Invidious Player</h1>
+        <div class="subtitle">プライバシー重視 • 高速並列取得 • 自動最適化</div>
+        
+        <div id="status" class="status loading">
+            <span class="loading-spinner"></span> インスタンスを読み込み中...
+        </div>
+        
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-value" id="instanceCount">0</div>
+                <div class="stat-label">インスタンス</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="successRate">0%</div>
+                <div class="stat-label">成功率</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgSpeed">0ms</div>
+                <div class="stat-label">平均速度</div>
+            </div>
+        </div>
+        
+        <div class="instance-selector">
+            <label for="instanceSelect">🌐 Invidiousインスタンス（自動選択 / 手動選択）</label>
+            <select id="instanceSelect"></select>
+        </div>
+        
+        <div class="search-section">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('search')">🔍 キーワード検索</button>
+                <button class="tab" onclick="switchTab('url')">🔗 YouTube URL</button>
+            </div>
+            
+            <div id="searchTab" class="tab-content active">
+                <div class="input-group">
+                    <input type="text" id="searchInput" placeholder="動画タイトルやキーワードを入力..." />
+                    <button id="searchBtn" onclick="searchVideos()">検索</button>
+                </div>
+            </div>
+            
+            <div id="urlTab" class="tab-content">
+                <div class="input-group">
+                    <input type="text" id="urlInput" placeholder="https://www.youtube.com/watch?v=... または動画ID" />
+                    <button id="urlBtn" onclick="playFromUrl()">再生</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="videoGrid" class="video-grid"></div>
+        
+        <div id="playerSection" class="player-section">
+            <video id="videoPlayer" controls></video>
+            <div class="player-title" id="playerTitle"></div>
+            <div class="player-controls">
+                <div class="quality-selector">
+                    <label for="qualitySelect">画質:</label>
+                    <select id="qualitySelect">
+                        <option value="">自動選択</option>
+                    </select>
+                </div>
+                <div class="instance-info" id="currentInstanceInfo"></div>
+            </div>
+            <div class="retry-info" id="retryInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        let instances = [];
+        let currentInstance = '';
+        let currentVideoData = null;
+        let currentVideoId = null;
+        let availableQualities = [];
+        let stats = { totalRequests: 0, successRequests: 0, totalTime: 0 };
+
+        async function loadInstances() {
+            try {
+                const allInstances = [
+                    { name: 'inv.nadeko.net', url: 'https://inv.nadeko.net', region: 'CL', flag: '🇨🇱' },
+                    { name: 'invidious.nerdvpn.de', url: 'https://invidious.nerdvpn.de', region: 'UA', flag: '🇺🇦' },
+                    { name: 'invidious.f5.si', url: 'https://invidious.f5.si', region: 'JP', flag: '🇯🇵' },
+                    { name: 'inv.perditum.com', url: 'https://inv.perditum.com', region: 'AL', flag: '🇦🇱' },
+                    { name: 'yewtu.be', url: 'https://yewtu.be', region: 'DE', flag: '🇩🇪' },
+                    { name: 'vid.puffyan.us', url: 'https://vid.puffyan.us', region: 'US', flag: '🇺🇸' },
+                    { name: 'yt.artemislena.eu', url: 'https://yt.artemislena.eu', region: 'DE', flag: '🇩🇪' },
+                    { name: 'invidious.flokinet.to', url: 'https://invidious.flokinet.to', region: 'RO', flag: '🇷🇴' },
+                    { name: 'invidious.projectsegfau.lt', url: 'https://invidious.projectsegfau.lt', region: 'FR', flag: '🇫🇷' },
+                    { name: 'inv.bp.projectsegfau.lt', url: 'https://inv.bp.projectsegfau.lt', region: 'LU', flag: '🇱🇺' },
+                    { name: 'invidious.tiekoetter.com', url: 'https://invidious.tiekoetter.com', region: 'DE', flag: '🇩🇪' },
+                    { name: 'invidious.slipfox.xyz', url: 'https://invidious.slipfox.xyz', region: 'US', flag: '🇺🇸' },
+                    { name: 'inv.pistasjis.net', url: 'https://inv.pistasjis.net', region: 'FR', flag: '🇫🇷' },
+                    { name: 'invidious.privacydev.net', url: 'https://invidious.privacydev.net', region: 'DE', flag: '🇩🇪' },
+                    { name: 'vid.priv.au', url: 'https://vid.priv.au', region: 'SG', flag: '🇸🇬' },
+                    { name: 'iv.melmac.space', url: 'https://iv.melmac.space', region: 'DE', flag: '🇩🇪' },
+                    { name: 'invidious.io.lol', url: 'https://invidious.io.lol', region: 'SG', flag: '🇸🇬' },
+                    { name: 'inv.riverside.rocks', url: 'https://inv.riverside.rocks', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.baczek.me', url: 'https://invidious.baczek.me', region: 'PL', flag: '🇵🇱' },
+                    { name: 'y.com.sb', url: 'https://y.com.sb', region: 'NL', flag: '🇳🇱' },
+                    { name: 'invidious.sethforprivacy.com', url: 'https://invidious.sethforprivacy.com', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.rhyshl.live', url: 'https://invidious.rhyshl.live', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.kavin.rocks', url: 'https://invidious.kavin.rocks', region: 'IN', flag: '🇮🇳' },
+                    { name: 'invidious.snopyta.org', url: 'https://invidious.snopyta.org', region: 'FI', flag: '🇫🇮' },
+                    { name: 'invidious.048596.xyz', url: 'https://invidious.048596.xyz', region: 'US', flag: '🇺🇸' },
+                    { name: 'vid.mint.lgbt', url: 'https://vid.mint.lgbt', region: 'CA', flag: '🇨🇦' },
+                    { name: 'inv.vern.cc', url: 'https://inv.vern.cc', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.esmailelbob.xyz', url: 'https://invidious.esmailelbob.xyz', region: 'CA', flag: '🇨🇦' },
+                    { name: 'inv.odyssey346.dev', url: 'https://inv.odyssey346.dev', region: 'FR', flag: '🇫🇷' },
+                    { name: 'invidious.drgns.space', url: 'https://invidious.drgns.space', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.adminforge.de', url: 'https://invidious.adminforge.de', region: 'DE', flag: '🇩🇪' },
+                    { name: 'inv.us.projectsegfau.lt', url: 'https://inv.us.projectsegfau.lt', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.fdn.fr', url: 'https://invidious.fdn.fr', region: 'FR', flag: '🇫🇷' },
+                    { name: 'invidious.namazso.eu', url: 'https://invidious.namazso.eu', region: 'RO', flag: '🇷🇴' },
+                    { name: 'invidious.silur.me', url: 'https://invidious.silur.me', region: 'RO', flag: '🇷🇴' },
+                    { name: 'inv.citw.lgbt', url: 'https://inv.citw.lgbt', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.privacyredirect.com', url: 'https://invidious.privacyredirect.com', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.jing.rocks', url: 'https://invidious.jing.rocks', region: 'SG', flag: '🇸🇬' },
+                    { name: 'invidious.protokolla.fi', url: 'https://invidious.protokolla.fi', region: 'FI', flag: '🇫🇮' },
+                    { name: 'invidious.lunar.icu', url: 'https://invidious.lunar.icu', region: 'DE', flag: '🇩🇪' },
+                    { name: 'inv.zzls.xyz', url: 'https://inv.zzls.xyz', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.lidarshield.cloud', url: 'https://invidious.lidarshield.cloud', region: 'US', flag: '🇺🇸' },
+                    { name: 'yt.oelrichsgarcia.de', url: 'https://yt.oelrichsgarcia.de', region: 'DE', flag: '🇩🇪' },
+                    { name: 'iv.nboeck.de', url: 'https://iv.nboeck.de', region: 'DE', flag: '🇩🇪' },
+                    { name: 'invidious.no-logs.com', url: 'https://invidious.no-logs.com', region: 'AT', flag: '🇦🇹' },
+                    { name: 'tube.cthd.icu', url: 'https://tube.cthd.icu', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.dhusch.de', url: 'https://invidious.dhusch.de', region: 'DE', flag: '🇩🇪' },
+                    { name: 'invidious.materialio.us', url: 'https://invidious.materialio.us', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.zapashcanon.fr', url: 'https://invidious.zapashcanon.fr', region: 'FR', flag: '🇫🇷' },
+                    { name: 'inv.tux.pizza', url: 'https://inv.tux.pizza', region: 'FI', flag: '🇫🇮' },
+                    { name: 'invidious.private.coffee', url: 'https://invidious.private.coffee', region: 'US', flag: '🇺🇸' },
+                    { name: 'yt.drgnz.club', url: 'https://yt.drgnz.club', region: 'FR', flag: '🇫🇷' },
+                    { name: 'inv.in.projectsegfau.lt', url: 'https://inv.in.projectsegfau.lt', region: 'IN', flag: '🇮🇳' },
+                    { name: 'invidious.einfachzocken.eu', url: 'https://invidious.einfachzocken.eu', region: 'DE', flag: '🇩🇪' },
+                    { name: 'iv.ggtyler.dev', url: 'https://iv.ggtyler.dev', region: 'US', flag: '🇺🇸' },
+                    { name: 'invidious.asir.dev', url: 'https://invidious.asir.dev', region: 'US', flag: '🇺🇸' },
+                    { name: 'iv.nboeck.de', url: 'https://iv.nboeck.de', region: 'DE', flag: '🇩🇪' },
+                    { name: 'yt.cdaut.de', url: 'https://yt.cdaut.de', region: 'DE', flag: '🇩🇪' },
+                    { name: 'invidious.fdn.fr', url: 'https://invidious.fdn.fr', region: 'FR', flag: '🇫🇷' },
+                    { name: 'invidious.perennialte.ch', url: 'https://invidious.perennialte.ch', region: 'CH', flag: '🇨🇭' }
+                ];
+                
+                try {
+                    const response = await fetch('https://api.invidious.io/instances.json');
+                    const data = await response.json();
+                    
+                    const apiInstances = data
+                        .filter(([name, info]) => info.type === 'https')
+                        .map(([name, info]) => ({
+                            name: name,
+                            url: info.uri,
+                            region: info.region,
+                            flag: info.flag
+                        }));
+                    
+                    const combined = [...apiInstances, ...allInstances];
+                    const uniqueMap = new Map();
+                    combined.forEach(inst => {
+                        if (!uniqueMap.has(inst.url)) {
+                            uniqueMap.set(inst.url, inst);
+                        }
+                    });
+                    instances = Array.from(uniqueMap.values());
+                } catch (apiError) {
+                    console.warn('API読み込み失敗、手動リストを使用:', apiError);
+                    instances = allInstances;
+                }
+                
+                if (instances.length === 0) {
+                    throw new Error('利用可能なインスタンスが見つかりません');
+                }
+                
+                const select = document.getElementById('instanceSelect');
+                const autoOption = document.createElement('option');
+                autoOption.value = 'auto';
+                autoOption.textContent = '⚡ 自動選択（最速インスタンスを並列検索）';
+                select.appendChild(autoOption);
+                
+                instances.forEach((instance) => {
+                    const option = document.createElement('option');
+                    option.value = instance.url;
+                    option.textContent = `${instance.flag || ''} ${instance.name} (${instance.region || 'Unknown'})`;
+                    select.appendChild(option);
+                });
+                
+                select.value = 'auto';
+                currentInstance = 'auto';
+                
+                select.addEventListener('change', (e) => {
+                    currentInstance = e.target.value;
+                });
+                
+                document.getElementById('instanceCount').textContent = instances.length;
+                document.getElementById('status').className = 'status success';
+                document.getElementById('status').innerHTML = `✅ ${instances.length}個のインスタンスを読み込みました（並列高速取得対応）`;
+                
+            } catch (error) {
+                console.error('インスタンス読み込みエラー:', error);
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '❌ インスタンスの読み込みに失敗しました: ' + error.message;
+            }
+        }
+
+        async function raceInstances(operation, operationName, maxParallel = 10) {
+            const retryInfo = document.getElementById('retryInfo');
+            if (retryInfo) {
+                retryInfo.textContent = `${operationName}中... 並列リクエスト送信`;
+            }
+            
+            const startTime = Date.now();
+            
+            return new Promise((resolve, reject) => {
+                let completed = false;
+                let errorCount = 0;
+                let lastError = null;
+                
+                const tryBatch = async (batch) => {
+                    const promises = batch.map(async (instance, index) => {
+                        try {
+                            const result = await operation(instance.url);
+                            
+                            if (!completed) {
+                                completed = true;
+                                const time = Date.now() - startTime;
+                                stats.totalRequests++;
+                                stats.successRequests++;
+                                stats.totalTime += time;
+                                
+                                currentInstance = instance.url;
+                                document.getElementById('instanceSelect').value = instance.url;
+                                
+                                if (retryInfo) {
+                                    retryInfo.textContent = `✅ 成功: ${instance.flag} ${instance.name} (${time}ms)`;
+                                }
+                                
+                                updateStats();
+                                resolve(result);
+                            }
+                            return result;
+                        } catch (error) {
+                            errorCount++;
+                            lastError = error;
+                            console.warn(`${instance.name} で失敗:`, error.message);
+                            return null;
+                        }
+                    });
+                    
+                    await Promise.all(promises);
+                };
+                
+                const runBatches = async () => {
+                    for (let i = 0; i < instances.length; i += maxParallel) {
+                        if (completed) break;
+                        const batch = instances.slice(i, i + maxParallel);
+                        await tryBatch(batch);
+                    }
+                    
+                    if (!completed) {
+                        stats.totalRequests++;
+                        if (retryInfo) {
+                            retryInfo.textContent = `❌ すべてのインスタンスで失敗しました (${errorCount}/${instances.length})`;
+                        }
+                        updateStats();
+                        reject(lastError || new Error('すべてのインスタンスで失敗しました'));
+                    }
+                };
+                
+                runBatches();
+            });
+        }
+
+        function updateStats() {
+            const successRate = stats.totalRequests > 0 
+                ? Math.round((stats.successRequests / stats.totalRequests) * 100) 
+                : 0;
+            const avgSpeed = stats.successRequests > 0 
+                ? Math.round(stats.totalTime / stats.successRequests) 
+                : 0;
+            
+            document.getElementById('successRate').textContent = `${successRate}%`;
+            document.getElementById('avgSpeed').textContent = `${avgSpeed}ms`;
+        }
+
+        async function searchVideos() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                alert('検索キーワードを入力してください');
+                return;
+            }
+            
+            const btn = document.getElementById('searchBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span> 検索中...';
+            
+            const videoGrid = document.getElementById('videoGrid');
+            videoGrid.innerHTML = '';
+            
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status info';
+            statusEl.innerHTML = '🔍 並列検索実行中...';
+            
+            try {
+                const videos = await raceInstances(async (instanceUrl) => {
+                    const url = `${instanceUrl}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 8000);
+                    
+                    const response = await fetch(url, { signal: controller.signal });
+                    clearTimeout(timeout);
+                    
+                    if (!response.ok) {
+                        throw new Error(`API エラー: ${response.status}`);
+                    }
+                    
+                    return await response.json();
+                }, '検索', 15);
+                
+                if (!videos || videos.length === 0) {
+                    videoGrid.innerHTML = '<div class="no-results">検索結果が見つかりませんでした</div>';
+                    statusEl.className = 'status';
+                    statusEl.style.display = 'none';
+                    return;
+                }
+                
+                videos.slice(0, 16).forEach(video => {
+                    const card = createVideoCard(video);
+                    videoGrid.appendChild(card);
+                });
+                
+                statusEl.className = 'status success';
+                statusEl.innerHTML = `✅ ${videos.slice(0, 16).length}件の動画を見つけました`;
+                
+            } catch (error) {
+                console.error('検索エラー:', error);
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '❌ 検索に失敗しました';
+                videoGrid.innerHTML = '<div class="no-results">検索に失敗しました。しばらくしてから再度お試しください。</div>';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function createVideoCard(video) {
+            const card = document.createElement('div');
+            card.className = 'video-card';
+            card.onclick = () => playVideoById(video.videoId, video.title);
+            
+            const thumbnail = video.videoThumbnails?.[0]?.url || '';
+            const title = video.title || '無題';
+            const author = video.author || '不明';
+            const views = formatViews(video.viewCount);
+            const length = formatDuration(video.lengthSeconds);
+            
+            card.innerHTML = `
+                <img class="video-thumbnail" src="${thumbnail}" alt="${title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22320%22 height=%22200%22%3E%3Crect fill=%22%231a1a2e%22 width=%22320%22 height=%22200%22/%3E%3Ctext fill=%22%23666%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2216%22%3E画像なし%3C/text%3E%3C/svg%3E'">
+                <div class="video-info">
+                    <div class="video-title">${escapeHtml(title)}</div>
+                    <div class="video-author">${escapeHtml(author)}</div>
+                    <div class="video-stats">${views} 視聴 • ${length}</div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        async function playFromUrl() {
+            const urlInput = document.getElementById('urlInput').value.trim();
+            if (!urlInput) {
+                alert('YouTube URLまたは動画IDを入力してください');
+                return;
+            }
+            
+            let videoId = urlInput;
+            
+            const urlMatch = urlInput.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            if (urlMatch) {
+                videoId = urlMatch[1];
+            }
+            
+            if (videoId.length !== 11) {
+                alert('有効なYouTube URLまたは11文字の動画IDを入力してください');
+                return;
+            }
+            
+            playVideoById(videoId);
+        }
+
+        async function playVideoById(videoId, title = '') {
+            const playerSection = document.getElementById('playerSection');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const playerTitle = document.getElementById('playerTitle');
+            const qualitySelect = document.getElementById('qualitySelect');
+            const currentInstanceInfo = document.getElementById('currentInstanceInfo');
+            const retryInfo = document.getElementById('retryInfo');
+            
+            currentVideoId = videoId;
+            playerTitle.textContent = title || `動画ID: ${videoId}`;
+            playerSection.classList.add('active');
+            playerSection.scrollIntoView({ behavior: 'smooth' });
+            
+            retryInfo.textContent = '動画情報を並列取得中...';
+            
+            try {
+                currentVideoData = await raceInstances(async (instanceUrl) => {
+                    const url = `${instanceUrl}/api/v1/videos/${videoId}`;
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 10000);
+                    
+                    const response = await fetch(url, { signal: controller.signal });
+                    clearTimeout(timeout);
+                    
+                    if (!response.ok) {
+                        throw new Error(`動画情報の取得に失敗: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (!data.adaptiveFormats && !data.formatStreams) {
+                        throw new Error('ストリームが見つかりません');
+                    }
+                    
+                    return data;
+                }, '動画情報取得', 15);
+                
+                if (currentVideoData.title && !title) {
+                    playerTitle.textContent = currentVideoData.title;
+                }
+                
+                const instanceName = instances.find(i => i.url === currentInstance)?.name || currentInstance;
+                currentInstanceInfo.textContent = `使用中: ${instanceName}`;
+                
+                populateQualityOptions();
+                
+                const selectedQuality = qualitySelect.value;
+                loadVideoWithQuality(selectedQuality);
+                
+            } catch (error) {
+                console.error('動画再生エラー:', error);
+                retryInfo.textContent = '❌ 動画の取得に失敗しました';
+                alert('動画の再生に失敗しました。別の動画を試してください。');
+            }
+        }
+
+        function populateQualityOptions() {
+            const qualitySelect = document.getElementById('qualitySelect');
+            qualitySelect.innerHTML = '<option value="">自動選択（最高画質）</option>';
+            
+            const formats = [
+                ...(currentVideoData.adaptiveFormats || []),
+                ...(currentVideoData.formatStreams || [])
+            ];
+            
+            availableQualities = [];
+            
+            const qualityMap = new Map();
+            formats.forEach(format => {
+                const isVideo = format.type?.includes('video');
+                const hasAudio = format.type?.includes('audio') || format.audioQuality;
+                
+                if (format.qualityLabel && (isVideo || hasAudio)) {
+                    const key = format.qualityLabel;
+                    if (!qualityMap.has(key) || (hasAudio && !qualityMap.get(key).hasAudio)) {
+                        qualityMap.set(key, { ...format, hasAudio });
+                    }
+                }
+            });
+            
+            const sortedQualities = Array.from(qualityMap.entries()).sort((a, b) => {
+                const aHeight = parseInt(a[0]) || 0;
+                const bHeight = parseInt(b[0]) || 0;
+                return bHeight - aHeight;
+            });
+            
+            sortedQualities.forEach(([label, format]) => {
+                availableQualities.push({ label, format });
+                const option = document.createElement('option');
+                option.value = label;
+                option.textContent = `${label}${format.hasAudio ? ' (音声あり)' : ''}`;
+                qualitySelect.appendChild(option);
+            });
+            
+            qualitySelect.onchange = () => {
+                loadVideoWithQuality(qualitySelect.value);
+            };
+        }
+
+        function loadVideoWithQuality(quality) {
+            const videoPlayer = document.getElementById('videoPlayer');
+            const retryInfo = document.getElementById('retryInfo');
+            
+            let videoUrl = '';
+            
+            if (quality) {
+                const selected = availableQualities.find(q => q.label === quality);
+                if (selected) {
+                    videoUrl = selected.format.url;
+                }
+            } else {
+                const preferredQualities = ['1080p', '720p', '480p', '360p', '240p'];
+                
+                for (const qual of preferredQualities) {
+                    const format = availableQualities.find(q => q.label === qual);
+                    if (format) {
+                        videoUrl = format.format.url;
+                        break;
+                    }
+                }
+                
+                if (!videoUrl && availableQualities.length > 0) {
+                    videoUrl = availableQualities[0].format.url;
+                }
+            }
+            
+            if (!videoUrl) {
+                retryInfo.textContent = '❌ 再生可能な動画ストリームが見つかりません';
+                return;
+            }
+            
+            const currentTime = videoPlayer.currentTime || 0;
+            videoPlayer.src = videoUrl;
+            videoPlayer.load();
+            
+            videoPlayer.addEventListener('loadedmetadata', () => {
+                if (currentTime > 0) {
+                    videoPlayer.currentTime = currentTime;
+                }
+            }, { once: true });
+            
+            videoPlayer.play().catch(e => {
+                console.error('再生エラー:', e);
+            });
+        }
+
+        function switchTab(tab) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'search') {
+                tabs[0].classList.add('active');
+                document.getElementById('searchTab').classList.add('active');
+            } else {
+                tabs[1].classList.add('active');
+                document.getElementById('urlTab').classList.add('active');
+            }
+        }
+
+        function formatViews(count) {
+            if (!count) return '0';
+            if (count >= 10000000) return Math.floor(count / 10000000) + '千万';
+            if (count >= 1000000) return Math.floor(count / 10000) + '万';
+            if (count >= 1000) return Math.floor(count / 1000) + '千';
+            return count.toString();
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '0:00';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchVideos();
+            }
+        });
+
+        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                playFromUrl();
+            }
+        });
+
+        loadInstances();
+    </script>
+</body>
+</html>
